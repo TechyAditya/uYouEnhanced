@@ -196,6 +196,22 @@ jobs:
             exit 1
           fi
 
+          # libc++ in iPhoneOS26.4 uses clang-19 builtins (__builtin_ctzg/__builtin_clzg).
+          # Theos CI toolchains can be older, so patch to guarded fallbacks.
+          COUNTR_H="$SDK_DIR/usr/include/c++/v1/__bit/countr.h"
+          COUNTL_H="$SDK_DIR/usr/include/c++/v1/__bit/countl.h"
+          if [ -f "$COUNTR_H" ]; then
+            perl -i -pe 's@return __builtin_ctzg\(__t, numeric_limits<_Tp>::digits\);@#if __has_builtin(__builtin_ctzg)\n  return __builtin_ctzg(__t, numeric_limits<_Tp>::digits);\n#else\n  if (__t == 0)\n    return numeric_limits<_Tp>::digits;\n  if (sizeof(_Tp) <= sizeof(unsigned int))\n    return __builtin_ctz(static_cast<unsigned int>(__t));\n  else if (sizeof(_Tp) <= sizeof(unsigned long))\n    return __builtin_ctzl(static_cast<unsigned long>(__t));\n  else\n    return __builtin_ctzll(static_cast<unsigned long long>(__t));\n#endif@g' "$COUNTR_H"
+          fi
+
+          if [ -f "$COUNTL_H" ]; then
+            perl -i -pe 's@return __builtin_clzg\(__t, numeric_limits<_Tp>::digits\);@#if __has_builtin(__builtin_clzg)\n  return __builtin_clzg(__t, numeric_limits<_Tp>::digits);\n#else\n  if (__t == 0)\n    return numeric_limits<_Tp>::digits;\n  if (sizeof(_Tp) <= sizeof(unsigned int))\n    return __builtin_clz(static_cast<unsigned int>(__t)) - (numeric_limits<unsigned int>::digits - numeric_limits<_Tp>::digits);\n  else if (sizeof(_Tp) <= sizeof(unsigned long))\n    return __builtin_clzl(static_cast<unsigned long>(__t)) - (numeric_limits<unsigned long>::digits - numeric_limits<_Tp>::digits);\n  else\n    return __builtin_clzll(static_cast<unsigned long long>(__t)) - (numeric_limits<unsigned long long>::digits - numeric_limits<_Tp>::digits);\n#endif@g' "$COUNTL_H"
+          fi
+
+          grep -n "__has_builtin(__builtin_ctzg)" "$COUNTR_H" >/dev/null || { echo "countr.h patch failed"; exit 1; }
+          grep -n "__has_builtin(__builtin_clzg)" "$COUNTL_H" >/dev/null || { echo "countl.h patch failed"; exit 1; }
+          echo "libc++ bit header compatibility patch applied."
+
           echo "SDK 26.4 compatibility patch applied and verified."
         env:
           THEOS: ${{ github.workspace }}/theos
