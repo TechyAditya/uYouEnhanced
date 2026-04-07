@@ -154,8 +154,13 @@ jobs:
 
             while IFS= read -r modulemap; do
               [ -n "$modulemap" ] || continue
-              perl -0777 -i -pe 's/\s*requires\s+feature\s+["\x27]found_incompatible_headers__check_search_paths["\x27]//g' "$modulemap"
+              perl -0777 -i -pe 's/\s+requires\s+(?:feature\s+)?["\x27]?found_incompatible_headers__check_search_paths["\x27]?//g' "$modulemap"
             done <<< "$MATCHES_BEFORE"
+
+            DARWIN_MODULEMAP="$SDK_DIR/usr/include/DarwinFoundation1.modulemap"
+            if [ -f "$DARWIN_MODULEMAP" ]; then
+              sed -i '' -E "s/[[:space:]]+requires[[:space:]]+(feature[[:space:]]+)?['\"]?found_incompatible_headers__check_search_paths['\"]?//g" "$DARWIN_MODULEMAP"
+            fi
           else
             echo "No feature-gated modulemaps found before patch."
           fi
