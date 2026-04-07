@@ -139,6 +139,25 @@ jobs:
         env:
           THEOS: ${{ github.workspace }}/theos
 
+      - name: Patch iPhoneOS26.4 modulemaps
+        if: ${{ inputs.sdk_version == '26.4' }}
+        run: |
+          set -euo pipefail
+          SDK_DIR="$THEOS/sdks/iPhoneOS${{ inputs.sdk_version }}.sdk"
+          test -d "$SDK_DIR" || { echo "Missing SDK for patching: $SDK_DIR"; exit 1; }
+
+          # Remove unsupported clang feature gate introduced in iOS 26.4 SDK modulemaps.
+          find "$SDK_DIR" -type f -name "*.modulemap" -print0 \
+            | xargs -0 sed -i '' -E "s/ requires feature 'found_incompatible_headers__check_search_paths'//g"
+
+          if grep -R "found_incompatible_headers__check_search_paths" "$SDK_DIR/usr/include" >/dev/null; then
+            echo "SDK patch verification failed: feature gate still present"
+            exit 1
+          fi
+          echo "SDK 26.4 compatibility patch applied and verified."
+        env:
+          THEOS: ${{ github.workspace }}/theos
+
       - name: Hash YT ipa url
         run: |
           URL_YT="$(jq -r '.inputs.decrypted_youtube_url' $GITHUB_EVENT_PATH)"
