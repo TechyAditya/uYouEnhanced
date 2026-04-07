@@ -173,6 +173,29 @@ jobs:
             exit 1
           fi
 
+          # UIKit in iPhoneOS26.4 may import <UIUtilities/UIDefines.h> which is not always
+          # exposed through usr/include in third-party SDK bundles. Bridge those headers.
+          UIUTILITIES_SRC=""
+          if [ -d "$SDK_DIR/System/Library/PrivateFrameworks/UIUtilities.framework/Headers" ]; then
+            UIUTILITIES_SRC="$SDK_DIR/System/Library/PrivateFrameworks/UIUtilities.framework/Headers"
+          elif [ -d "$SDK_DIR/System/Library/Frameworks/UIUtilities.framework/Headers" ]; then
+            UIUTILITIES_SRC="$SDK_DIR/System/Library/Frameworks/UIUtilities.framework/Headers"
+          fi
+
+          if [ -n "$UIUTILITIES_SRC" ]; then
+            UIUTILITIES_DST="$SDK_DIR/usr/include/UIUtilities"
+            mkdir -p "$UIUTILITIES_DST"
+            cp -f "$UIUTILITIES_SRC"/*.h "$UIUTILITIES_DST"/ 2>/dev/null || true
+            if [ ! -f "$UIUTILITIES_DST/UIDefines.h" ]; then
+              echo "SDK compatibility patch failed: UIDefines.h still missing after bridge copy"
+              exit 1
+            fi
+            echo "UIUtilities headers bridged to usr/include/UIUtilities"
+          else
+            echo "SDK compatibility patch failed: UIUtilities framework headers not found in SDK"
+            exit 1
+          fi
+
           echo "SDK 26.4 compatibility patch applied and verified."
         env:
           THEOS: ${{ github.workspace }}/theos
