@@ -54,7 +54,7 @@ concurrency:
 jobs:
   build:
     name: Build uYouEnhanced
-    runs-on: macos-14
+    runs-on: macos-latest
     permissions:
       contents: write
 
@@ -65,6 +65,29 @@ jobs:
           path: main
           ref: ${{ github.event.inputs.commit_id || github.ref }}
           submodules: recursive
+
+      - name: Select Latest Xcode
+        run: |
+          set -euo pipefail
+          LATEST_XCODE="$(ls -d /Applications/Xcode*.app | sort -V | tail -n1)"
+          if [ -z "$LATEST_XCODE" ]; then
+            echo "No Xcode installation found under /Applications"
+            exit 1
+          fi
+
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+          echo "DEVELOPER_DIR=$LATEST_XCODE/Contents/Developer" >> "$GITHUB_ENV"
+          echo "Selected Xcode: $LATEST_XCODE"
+
+      - name: Print Toolchain Diagnostics
+        run: |
+          set -euo pipefail
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR"
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos clang --version
+          clang --version
 
       - name: Install Dependencies
         run: brew install ldid dpkg make
