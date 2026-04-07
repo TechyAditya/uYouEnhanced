@@ -208,8 +208,15 @@ jobs:
             perl -i -pe 's@return __builtin_clzg\(__t, numeric_limits<_Tp>::digits\);@#if __has_builtin(__builtin_clzg)\n  return __builtin_clzg(__t, numeric_limits<_Tp>::digits);\n#else\n  if (__t == 0)\n    return numeric_limits<_Tp>::digits;\n  if (sizeof(_Tp) <= sizeof(unsigned int))\n    return __builtin_clz(static_cast<unsigned int>(__t)) - (numeric_limits<unsigned int>::digits - numeric_limits<_Tp>::digits);\n  else if (sizeof(_Tp) <= sizeof(unsigned long))\n    return __builtin_clzl(static_cast<unsigned long>(__t)) - (numeric_limits<unsigned long>::digits - numeric_limits<_Tp>::digits);\n  else\n    return __builtin_clzll(static_cast<unsigned long long>(__t)) - (numeric_limits<unsigned long long>::digits - numeric_limits<_Tp>::digits);\n#endif@g' "$COUNTL_H"
           fi
 
+          POINTER_TRAITS_H="$SDK_DIR/usr/include/c++/v1/__memory/pointer_traits.h"
+          if [ -f "$POINTER_TRAITS_H" ]; then
+            # Older clang rejects static_assert(false, ...) in template definitions.
+            perl -i -pe 's/static_assert\(false, "Cannot rebind pointer; did you forget to add a rebind member to your pointer\?"\);/static_assert(is_void<_Tp>::value \&\& !is_void<_Tp>::value, "Cannot rebind pointer; did you forget to add a rebind member to your pointer?");/g' "$POINTER_TRAITS_H"
+          fi
+
           grep -n "__has_builtin(__builtin_ctzg)" "$COUNTR_H" >/dev/null || { echo "countr.h patch failed"; exit 1; }
           grep -n "__has_builtin(__builtin_clzg)" "$COUNTL_H" >/dev/null || { echo "countl.h patch failed"; exit 1; }
+          grep -n "is_void<_Tp>::value && !is_void<_Tp>::value" "$POINTER_TRAITS_H" >/dev/null || { echo "pointer_traits.h patch failed"; exit 1; }
           echo "libc++ bit header compatibility patch applied."
 
           echo "SDK 26.4 compatibility patch applied and verified."
