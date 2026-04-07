@@ -176,10 +176,10 @@ jobs:
           # UIKit in iPhoneOS26.4 may import <UIUtilities/UIDefines.h> which is not always
           # exposed through usr/include in third-party SDK bundles. Bridge those headers.
           UIUTILITIES_SRC=""
-          if [ -d "$SDK_DIR/System/Library/PrivateFrameworks/UIUtilities.framework/Headers" ]; then
-            UIUTILITIES_SRC="$SDK_DIR/System/Library/PrivateFrameworks/UIUtilities.framework/Headers"
-          elif [ -d "$SDK_DIR/System/Library/Frameworks/UIUtilities.framework/Headers" ]; then
-            UIUTILITIES_SRC="$SDK_DIR/System/Library/Frameworks/UIUtilities.framework/Headers"
+          UIDEFINES_PATH="$(find "$SDK_DIR/System/Library" -type f -path "*/UIUtilities.framework/Headers/UIDefines.h" | head -n1 || true)"
+          if [ -n "$UIDEFINES_PATH" ]; then
+            UIUTILITIES_SRC="$(dirname "$UIDEFINES_PATH")"
+            echo "Using UIUtilities headers from: $UIUTILITIES_SRC"
           fi
 
           if [ -n "$UIUTILITIES_SRC" ]; then
@@ -192,7 +192,7 @@ jobs:
             fi
             echo "UIUtilities headers bridged to usr/include/UIUtilities"
           else
-            echo "SDK compatibility patch failed: UIUtilities framework headers not found in SDK"
+            echo "SDK compatibility patch failed: UIUtilities headers not found in SDK System/Library"
             exit 1
           fi
 
