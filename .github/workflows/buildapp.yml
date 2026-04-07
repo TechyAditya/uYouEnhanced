@@ -147,13 +147,27 @@ jobs:
           test -d "$SDK_DIR" || { echo "Missing SDK for patching: $SDK_DIR"; exit 1; }
 
           # Remove unsupported clang feature gate introduced in iOS 26.4 SDK modulemaps.
-          find "$SDK_DIR" -type f -name "*.modulemap" -print0 \
-            | xargs -0 sed -i '' -E "s/ requires feature 'found_incompatible_headers__check_search_paths'//g"
+          MATCHES_BEFORE="$(grep -RIl "found_incompatible_headers__check_search_paths" "$SDK_DIR" || true)"
+          if [ -n "$MATCHES_BEFORE" ]; then
+            echo "Found feature-gated modulemaps before patch:"
+            echo "$MATCHES_BEFORE"
 
-          if grep -R "found_incompatible_headers__check_search_paths" "$SDK_DIR/usr/include" >/dev/null; then
+            while IFS= read -r modulemap; do
+              [ -n "$modulemap" ] || continue
+              perl -0777 -i -pe 's/\s*requires\s+feature\s+["\x27]found_incompatible_headers__check_search_paths["\x27]//g' "$modulemap"
+            done <<< "$MATCHES_BEFORE"
+          else
+            echo "No feature-gated modulemaps found before patch."
+          fi
+
+          MATCHES_AFTER="$(grep -RIl "found_incompatible_headers__check_search_paths" "$SDK_DIR" || true)"
+          if [ -n "$MATCHES_AFTER" ]; then
+            echo "Feature-gated modulemaps still present after patch:"
+            echo "$MATCHES_AFTER"
             echo "SDK patch verification failed: feature gate still present"
             exit 1
           fi
+
           echo "SDK 26.4 compatibility patch applied and verified."
         env:
           THEOS: ${{ github.workspace }}/theos
