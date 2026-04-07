@@ -84,7 +84,7 @@ jobs:
         id: SDK
         uses: actions/cache@v4.3.0
         env:
-          cache-name: iOS-${{ inputs.sdk_version }}-SDK-${{ runner.os }}-v2
+          cache-name: iOS-${{ inputs.sdk_version }}-SDK-${{ runner.os }}-v3
         with:
           path: theos/sdks/
           key: ${{ env.cache-name }}
@@ -96,23 +96,31 @@ jobs:
 
           if [ -d "$SDK_DIR" ]; then
             echo "SDK already present: $SDK_DIR"
-            exit 0
+          else
+            echo "SDK missing in cache, downloading iPhoneOS${{ inputs.sdk_version }}.sdk..."
+            git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/xybp888/iOS-SDKs.git sdks
+            cd sdks
+            git sparse-checkout init --cone
+            git sparse-checkout set iPhoneOS${{ inputs.sdk_version }}.sdk
+            git checkout
+
+            test -d "iPhoneOS${{ inputs.sdk_version }}.sdk" || {
+              echo "SDK iPhoneOS${{ inputs.sdk_version }}.sdk not found in repo"
+              exit 1
+            }
+
+            mkdir -p "$THEOS/sdks"
+            mv "iPhoneOS${{ inputs.sdk_version }}.sdk" "$THEOS/sdks/"
           fi
 
-          echo "SDK missing in cache, downloading iPhoneOS${{ inputs.sdk_version }}.sdk..."
-          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/xybp888/iOS-SDKs.git sdks
-          cd sdks
-          git sparse-checkout init --cone
-          git sparse-checkout set iPhoneOS${{ inputs.sdk_version }}.sdk
-          git checkout
+          # iPhoneOS26.4 SDK ships modulemaps gated by a clang feature that Theos toolchains may not expose yet.
+          # Strip that gate so standard libc typedef modules (size_t/ptrdiff_t/wchar_t) can be imported.
+          if [ "${{ inputs.sdk_version }}" = "26.4" ]; then
+            echo "Applying iPhoneOS26.4 SDK compatibility patch..."
+            find "$THEOS/sdks/iPhoneOS${{ inputs.sdk_version }}.sdk" -type f -name "*.modulemap" -print0 \
+              | xargs -0 sed -i '' -E "s/ requires feature 'found_incompatible_headers__check_search_paths'//g"
+          fi
 
-          test -d "iPhoneOS${{ inputs.sdk_version }}.sdk" || {
-            echo "SDK iPhoneOS${{ inputs.sdk_version }}.sdk not found in repo"
-            exit 1
-          }
-
-          mkdir -p "$THEOS/sdks"
-          mv "iPhoneOS${{ inputs.sdk_version }}.sdk" "$THEOS/sdks/"
           ls -la "$THEOS/sdks"
         env:
           THEOS: ${{ github.workspace }}/theos
